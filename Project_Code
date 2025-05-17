@@ -1,0 +1,118 @@
+#include <Servo.h>
+
+const int emgPin = A0;                 // EMG sensor input pin
+const int filterWindowSize = 10;       // Moving average window size
+
+// Thresholds (adjust as per your muscle signals)
+const int threshold1 = 80;            // For pinch
+const int threshold2 = 120;            // For pickup
+const int threshold3 = 200;            // For full hand close
+
+// Servo pins for each finger
+const int thumbPin = 3;
+const int indexPin = 5;
+const int middlePin = 6;
+const int ringPin = 9;
+const int pinkyPin = 10;
+
+Servo thumbServo, indexServo, middleServo, ringServo, pinkyServo;
+
+int emgBuffer[filterWindowSize];       // Circular buffer for EMG values
+int bufferIndex = 0;
+
+void setup() {
+    Serial.begin(115200);
+
+    // Attach servos to their respective pins
+    thumbServo.attach(thumbPin);
+    indexServo.attach(indexPin);
+    middleServo.attach(middlePin);
+    ringServo.attach(ringPin);
+    pinkyServo.attach(pinkyPin);
+
+    // Set initial positions (open hand)
+    openAllFingers();
+
+    // Initialize EMG buffer
+    for (int i = 0; i < filterWindowSize; i++) {
+        emgBuffer[i] = 0;
+    }
+}
+
+// Moving average filter function
+int movingAverageFilter(int newValue) {
+    emgBuffer[bufferIndex] = newValue;
+    bufferIndex = (bufferIndex + 1) % filterWindowSize;
+
+    int sum = 0;
+    for (int i = 0; i < filterWindowSize; i++) {
+        sum += emgBuffer[i];
+    }
+    return sum / filterWindowSize;
+}
+
+void loop() {
+    int emgValue = analogRead(emgPin);           // Raw EMG value
+    int filteredValue = movingAverageFilter(emgValue);  // Smoothed EMG
+
+    String gesture = "Open";
+
+    // Decide which gesture to perform based on thresholds
+    if (filteredValue > threshold3) {
+        closeAllFingers();
+        gesture = "Full Close";
+    }
+    else if (filteredValue > threshold2) {
+        pickupGesture();
+        gesture = "Pickup";
+    }
+    else if (filteredValue > threshold1) {
+        pinchGesture();
+        gesture = "Pinch";
+    } 
+    else {
+        openAllFingers();
+    }
+
+    // Serial output for Serial Plotter
+    Serial.print("EMG: ");
+    Serial.print(filteredValue);
+    Serial.print("\tGesture: ");
+    Serial.println(gesture);
+
+    delay(10);  // For stability
+}
+
+// ====== Gesture Functions ======
+
+void openAllFingers() {
+    thumbServo.write(10);
+    indexServo.write(10);
+    middleServo.write(10);
+    ringServo.write(10);
+    pinkyServo.write(10);
+}
+
+void closeAllFingers() {
+    thumbServo.write(170);
+    indexServo.write(170);
+    middleServo.write(170);
+    ringServo.write(170);
+    pinkyServo.write(170);
+}
+
+void pinchGesture() {
+    thumbServo.write(170);
+    indexServo.write(170);
+    middleServo.write(10);
+    ringServo.write(10);
+    pinkyServo.write(10);
+}
+
+void pickupGesture() {
+    thumbServo.write(170);
+    indexServo.write(170);
+    middleServo.write(170);
+    ringServo.write(10);
+    pinkyServo.write(10);
+}
